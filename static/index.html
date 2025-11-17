@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="it" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DNS Checker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      body, html {
+        font-family: 'Montserrat', sans-serif !important;
+    }
+    </style>
+    <style>
+      *[class*="rounded"] {
+        border-radius: 0 !important;
+      }
+      .leaflet-container {
+        border-radius: 0 !important;
+      }
+    </style>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root{
+      --bg:#f3f4f6;--card:#f9fafb;--text:#0f172a;--muted:#475569;--border:#dbeafe;--accent:#0284c7;
+    }
+    html[data-theme='night']{
+      --bg:#020617;--card:#020617;--text:#e5e7eb;--muted:#9ca3af;--border:#1f2937;--accent:#38bdf8;
+    }
+    html[data-theme='night'] input,
+    html[data-theme='night'] select{
+      background:#020617;color:#e5e7eb;border-color:#374151;
+    }
+    html[data-theme='night'] input::placeholder{color:#6b7280;}
+    .fade-in{animation:fade-in .25s ease-out both;}
+    @keyframes fade-in{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:none;}}
+    .leaflet-container{border-radius:1rem;}
+  </style>
+</head>
+<body class="min-h-screen" style="background:var(--bg);color:var(--text)">
+  <div class="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
+
+    <header class="flex items-center justify-between mb-1 relative">
+      <!-- LOGO SINISTRA -->
+      <div class="flex items-center" style="width:230px; height:60px;">
+        <img id="logo"
+            src="static/logo.png"
+            alt="Logo"
+            style="width:230px; height:60px; object-fit:contain;" />
+      </div>
+      <!-- TITOLO CENTRATO -->
+      <div class="absolute left-1/2 transform -translate-x-1/2">
+        <h1 class="text-2xl md:text-3xl font-semibold tracking-tight">
+          DNS Checker
+        </h1>
+      </div>
+      <!-- TOGGLE TEMA -->
+      <button id="themeBtn"
+        class="px-3 py-2 rounded-xl border text-sm font-medium shadow-sm"
+        style="background:var(--card); border-color:var(--border); color:var(--text)">
+        🌙 / ☀️
+      </button>
+    </header>
+
+
+    <!-- DNS propagation -->
+    <section class="rounded-2xl border shadow-sm" style="background:var(--card);border-color:var(--border)">
+      <form id="form" class="p-4 md:p-5 grid md:grid-cols-4 gap-3 items-end">
+        <label class="block md:col-span-2">
+          <span class="text-sm" style="color:var(--muted)">Hostname / Dominio</span>
+          <input id="name" class="mt-1 w-full rounded-xl border px-3 py-2 outline-none focus:ring-4"
+                 style="border-color:var(--border)" placeholder="es. example.com" required />
+        </label>
+        <label class="block">
+          <span class="text-sm" style="color:var(--muted)">Tipo record DNS</span>
+          <select id="rtype" class="mt-1 w-full rounded-xl border px-3 py-2 outline-none focus:ring-4"
+                  style="border-color:var(--border)">
+            <option>A</option><option>AAAA</option><option>CNAME</option>
+            <option>TXT</option><option>MX</option><option>NS</option>
+          </select>
+        </label>
+        <button type="submit"
+          class="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 font-medium shadow-sm text-white hover:opacity-95 focus:ring-4 transition"
+          style="background:var(--accent)">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path>
+          </svg>
+          Verifica DNS
+        </button>
+      </form>
+      <div id="status" class="px-4 pb-4 text-sm" style="color:var(--muted)"></div>
+    </section>
+
+    <!-- Mappa -->
+    <section class="rounded-2xl border shadow-sm overflow-hidden" style="background:var(--card);border-color:var(--border)">
+      <div id="map" class="h-[420px] w-full"></div>
+    </section>
+
+    <!-- Tabella risultati DNS -->
+    <section class="rounded-2xl border shadow-sm p-4" style="background:var(--card);border-color:var(--border)">
+      <h2 class="text-sm font-semibold mb-2" style="color:var(--muted)">Risultati DNS per nazione</h2>
+      <div class="overflow-auto">
+        <table class="w-full text-sm">
+          <thead class="sticky top-0" style="background:var(--bg)">
+            <tr class="text-left">
+              <th class="px-3 py-2">Nazione</th>
+              <th class="px-3 py-2">RCODE</th>
+              <th class="px-3 py-2">Risposte</th>
+              <th class="px-3 py-2">TTL</th>
+              <th class="px-3 py-2">Stato</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- WHOIS + Email Auth -->
+    <section class="rounded-2xl border shadow-sm p-4 space-y-4" style="background:var(--card);border-color:var(--border)">
+      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+        <div class="flex-1 grid md:grid-cols-3 gap-3 items-end">
+          <div class="md:col-span-2">
+            <span class="text-sm" style="color:var(--muted)">Dominio per WHOIS / Email Auth</span>
+            <input id="whoisDomain" class="mt-1 w-full rounded-xl border px-3 py-2 outline-none focus:ring-4"
+                   style="border-color:var(--border)" placeholder="es. example.com (vuoto = usa il campo sopra)" />
+          </div>
+          <div>
+            <span class="text-sm" style="color:var(--muted)">Selector DKIM (opzionale)</span>
+            <input id="dkimSelector" class="mt-1 w-full rounded-xl border px-3 py-2 outline-none focus:ring-4"
+                   style="border-color:var(--border)" placeholder="es. default, google, selector1" />
+          </div>
+        </div>
+        <button id="whoisBtn"
+          class="px-4 py-2 rounded-xl font-medium shadow-sm text-white hover:opacity-95 focus:ring-4 transition self-start md:self-auto"
+          style="background:var(--accent)">
+          WHOIS + Email Auth
+        </button>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <h3 class="text-sm font-semibold mb-1" style="color:var(--muted)">WHOIS</h3>
+          <pre id="whoisResult" class="text-xs md:text-[0.8rem] whitespace-pre-wrap bg-black/5 rounded-xl p-3"
+               style="border:1px solid var(--border);max-height:260px;overflow:auto;"></pre>
+        </div>
+        <div>
+          <h3 class="text-sm font-semibold mb-1" style="color:var(--muted)">Email Auth (SPF / DMARC / DKIM / BIMI)</h3>
+          <pre id="emailResult" class="text-xs md:text-[0.8rem] whitespace-pre-wrap bg-black/5 rounded-xl p-3"
+               style="border:1px solid var(--border);max-height:260px;overflow:auto;"></pre>
+        </div>
+      </div>
+    </section>
+  </div>
+
+<script>
+const htmlEl=document.documentElement;
+const themeBtn=document.getElementById('themeBtn');
+function applyTheme(t){htmlEl.setAttribute('data-theme',t);localStorage.setItem('theme',t);}
+applyTheme(localStorage.getItem('theme')||'light');
+themeBtn.addEventListener('click',()=>{applyTheme(htmlEl.getAttribute('data-theme')==='night'?'light':'night');});
+
+const statusDiv=document.getElementById('status');
+const tbody=document.getElementById('tbody');
+const form=document.getElementById('form');
+
+// Map
+const map=L.map('map',{worldCopyJump:true}).setView([20,0],2);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'&copy; OpenStreetMap contributors'
+}).addTo(map);
+const layer=L.layerGroup().addTo(map);
+
+// DNS table row
+function mkRow(r){
+  const answers=(r.answers||[]).map(a=>a.data);
+  const ttl=(r.answers&&r.answers.length)?(r.answers[0].ttl ?? ''):'';
+  const hasAnswers=r.answers&&r.answers.length>0;
+  const ok=(r.status==='ok') && hasAnswers;
+  const tr=document.createElement('tr');
+  tr.className='fade-in';
+  tr.innerHTML=`
+    <td class="px-3 py-2">${r.resolver}</td>
+    <td class="px-3 py-2">${r.rcode ?? ''}</td>
+    <td class="px-3 py-2">${answers.join('<br/>')}</td>
+    <td class="px-3 py-2">${ttl}</td>
+    <td class="px-3 py-2">
+      <span class="inline-flex items-center gap-2" style="color:${ok?'#10b981':'#e11d48'}">
+        <span class="w-2.5 h-2.5 rounded-full" style="background:${ok?'#10b981':'#e11d48'}"></span>
+        ${ok?'OK':'KO'}
+      </span>
+    </td>`;
+  return {tr,ok};
+}
+
+form.addEventListener('submit',async e=>{
+  e.preventDefault();
+  const name=document.getElementById('name').value.trim();
+  const rtype=document.getElementById('rtype').value;
+  if(!name)return;
+  statusDiv.textContent='Interrogo i resolver per nazione…';
+  tbody.innerHTML='';
+  layer.clearLayers();
+  try{
+    const resp=await fetch(`/api/check?name=${encodeURIComponent(name)}&rtype=${encodeURIComponent(rtype)}`);
+    const data=await resp.json();
+    statusDiv.textContent=`Query: ${data.query.name} (${data.query.type})`;
+    data.results.forEach(r=>{
+      const {tr,ok}=mkRow(r);
+      tbody.appendChild(tr);
+      const g=r.geo||{};
+      if(typeof g.lat==='number' && typeof g.lng==='number'){
+        const color=ok?'#10b981':'#e11d48';
+        const m=L.circleMarker([g.lat,g.lng],{radius:8,color,fillColor:color,fillOpacity:0.9,weight:2});
+        m.bindPopup(`<b>${r.resolver}</b><br>${g.label||''}<br>${ok?'✅ Risolto':'❌ Nessuna risposta'}`);
+        layer.addLayer(m);
+      }
+    });
+  }catch(err){
+    statusDiv.textContent='Errore: '+err;
+  }
+});
+
+// WHOIS + Email Auth
+const whoisBtn=document.getElementById('whoisBtn');
+const whoisResult=document.getElementById('whoisResult');
+const emailResult=document.getElementById('emailResult');
+
+function formatWhois(w){
+  if(w.error) return 'Errore WHOIS: '+w.error;
+  const lines=[];
+  lines.push('Dominio: '+(w.domain_name||'-'));
+  lines.push('Registrar: '+(w.registrar||'-'));
+  lines.push('Creazione: '+(w.creation_date||'-'));
+  lines.push('Scadenza: '+(w.expiration_date||'-'));
+  lines.push('Name servers: '+(w.name_servers||'-'));
+  lines.push('Status: '+(w.status||'-'));
+  return lines.join('\n');
+}
+function formatEmailAuth(e){
+  if(!e) return 'Nessun dato email auth.';
+  const parts=[];
+  function block(label,obj){
+    if(!obj){parts.push(label+': nessun dato');return;}
+    const recs=(obj.records||[]).length?(obj.records||[]).join('\n  - '):'nessun record';
+    parts.push(`${label} (${obj.name||'-'})`);
+    parts.push(`  OK: ${obj.ok ? 'sì' : 'no'}`);
+    if(obj.error) parts.push(`  Errore: ${obj.error}`);
+    parts.push('  Records:');
+    parts.push('  - '+recs);
+    parts.push('');
+  }
+  block('SPF',e.spf);
+  block('DMARC',e.dmarc);
+  block('DKIM',e.dkim);
+  block('BIMI',e.bimi);
+  return parts.join('\n');
+}
+
+whoisBtn.addEventListener('click',async()=>{
+  const mainDomain=document.getElementById('name').value.trim();
+  const overrideDomain=document.getElementById('whoisDomain').value.trim();
+  const domain=overrideDomain||mainDomain;
+  const dkimSelector=document.getElementById('dkimSelector').value.trim();
+  if(!domain){
+    whoisResult.textContent='Inserisci un dominio (sopra o nel campo dedicato).';
+    emailResult.textContent='';
+    return;
+  }
+  whoisResult.textContent='Carico WHOIS…';
+  emailResult.textContent='Controllo record SPF / DMARC / DKIM / BIMI…';
+  try{
+    const [wResp,eResp]=await Promise.all([
+      fetch(`/api/whois?domain=${encodeURIComponent(domain)}`),
+      fetch(`/api/email_auth?domain=${encodeURIComponent(domain)}&dkim_selector=${encodeURIComponent(dkimSelector)}`)
+    ]);
+    const wData=await wResp.json();
+    const eData=await eResp.json();
+    whoisResult.textContent=formatWhois(wData);
+    emailResult.textContent=formatEmailAuth(eData);
+  }catch(err){
+    whoisResult.textContent='Errore: '+err;
+    emailResult.textContent='';
+  }
+});
+</script>
+</body>
+</html>

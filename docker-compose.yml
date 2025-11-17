@@ -1,0 +1,6 @@
+services:
+  web:
+    image: sysdumped/dns-checker:latest
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
