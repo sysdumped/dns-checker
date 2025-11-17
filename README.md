@@ -15,7 +15,7 @@ Una webapp containerizzata per visualizzare la propagazione dei record DNS in tu
 
 ## 📦 Struttura del progetto
 ```
-dns-propagation-checker/
+dns-checker/
 ├── app.py
 ├── static/
 │   └── index.html
@@ -30,8 +30,8 @@ dns-propagation-checker/
 
 ### 1️⃣ Clona o estrai il progetto
 ```bash
-unzip dns-propagation-checker-soft-night-fixed.zip
-cd dns-propagation-checker-soft-night-fixed
+unzip dns-checker.zip
+cd dns-checker
 ```
 
 ### 2️⃣ Avvia con Docker Compose
